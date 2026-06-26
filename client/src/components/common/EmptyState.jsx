@@ -18,11 +18,16 @@ export default function EmptyState({
   actionLabel,
   onAction,
 }) {
+  // Support both JSX elements (<HiInbox />) and component references (HiInbox)
+  const iconElement = typeof Icon === 'function'
+    ? <Icon className="w-10 h-10 text-surface-400 dark:text-surface-500" />
+    : Icon;
+
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center animate-fade-in">
       {/* Large muted icon */}
       <div className="w-20 h-20 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center mb-5">
-        <Icon className="w-10 h-10 text-surface-400 dark:text-surface-500" />
+        {iconElement}
       </div>
 
       <h3 className="text-lg font-semibold text-surface-800 dark:text-surface-200 mb-1">

@@ -17,7 +17,7 @@ export default function AdminDashboard() {
         if (res.success) {
           setData(res.data);
         } else {
-          showToast(res.message, 'error');
+          showToast(res.message || 'Failed to load dashboard', 'error');
         }
       } catch (err) {
         showToast('Failed to load admin dashboard', 'error');
@@ -30,6 +30,32 @@ export default function AdminDashboard() {
 
   if (loading) return <div className="p-8 flex justify-center"><LoadingSpinner size="lg" /></div>;
   if (!data) return <EmptyState icon={<HiChartPie />} title="No Data" description="Could not load dashboard data." />;
+
+  // Normalize the nested counts structure
+  const totalUsers = data.counts?.totalUsers ?? data.totalUsers ?? 0;
+  const totalEvents = data.counts?.totalEvents ?? data.totalEvents ?? 0;
+  const totalRegistrations = data.counts?.totalRegistrations ?? data.totalRegistrations ?? 0;
+  const totalAttendance = data.counts?.totalAttendance ?? data.totalAttendance ?? 0;
+
+  // Normalize usersByRole — backend returns an object { admin: 1, student: 5 }
+  const usersByRole = (() => {
+    const raw = data.usersByRole;
+    if (Array.isArray(raw)) return raw; // Already array of { _id, count }
+    if (raw && typeof raw === 'object') {
+      return Object.entries(raw).map(([role, count]) => ({ _id: role, count }));
+    }
+    return [];
+  })();
+
+  // Normalize eventsByCategory — backend returns an object { workshop: 3, seminar: 2 }
+  const eventsByCategory = (() => {
+    const raw = data.eventsByCategory;
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'object') {
+      return Object.entries(raw).map(([cat, count]) => ({ _id: cat, count }));
+    }
+    return [];
+  })();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -46,10 +72,10 @@ export default function AdminDashboard() {
 
       {/* Stats Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={<HiUsers />} title="Total Users" value={data.totalUsers} color="from-blue-500 to-cyan-500" />
-        <StatCard icon={<HiCalendarDays />} title="Total Events" value={data.totalEvents} color="from-purple-500 to-fuchsia-500" />
-        <StatCard icon={<HiTicket />} title="Registrations" value={data.totalRegistrations} color="from-amber-500 to-orange-500" />
-        <StatCard icon={<HiCheckBadge />} title="Attendance" value={data.totalAttendance} color="from-emerald-500 to-teal-500" />
+        <StatCard icon={<HiUsers />} title="Total Users" value={totalUsers} color="from-blue-500 to-cyan-500" />
+        <StatCard icon={<HiCalendarDays />} title="Total Events" value={totalEvents} color="from-purple-500 to-fuchsia-500" />
+        <StatCard icon={<HiTicket />} title="Registrations" value={totalRegistrations} color="from-amber-500 to-orange-500" />
+        <StatCard icon={<HiCheckBadge />} title="Attendance" value={totalAttendance} color="from-emerald-500 to-teal-500" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -59,14 +85,15 @@ export default function AdminDashboard() {
             <HiUsers className="text-primary-500" /> Users by Role
           </h2>
           <div className="space-y-4">
-            {data.usersByRole?.map(role => (
+            {usersByRole.length === 0 && <p className="text-sm text-surface-500">No data available.</p>}
+            {usersByRole.map(role => (
               <div key={role._id}>
                 <div className="flex justify-between text-sm mb-1 text-surface-700 dark:text-surface-300">
                   <span className="capitalize">{role._id}</span>
                   <span className="font-semibold">{role.count}</span>
                 </div>
                 <div className="w-full bg-surface-200 dark:bg-surface-800 rounded-full h-2">
-                  <div className="bg-primary-500 h-2 rounded-full" style={{ width: `${Math.min((role.count / data.totalUsers) * 100, 100)}%` }}></div>
+                  <div className="bg-primary-500 h-2 rounded-full" style={{ width: `${Math.min((role.count / (totalUsers || 1)) * 100, 100)}%` }}></div>
                 </div>
               </div>
             ))}
@@ -79,14 +106,15 @@ export default function AdminDashboard() {
             <HiChartBar className="text-accent-500" /> Events by Category
           </h2>
           <div className="space-y-4">
-            {data.eventsByCategory?.map(cat => (
+            {eventsByCategory.length === 0 && <p className="text-sm text-surface-500">No data available.</p>}
+            {eventsByCategory.map(cat => (
               <div key={cat._id}>
                 <div className="flex justify-between text-sm mb-1 text-surface-700 dark:text-surface-300">
                   <span className="capitalize">{cat._id}</span>
                   <span className="font-semibold">{cat.count}</span>
                 </div>
                 <div className="w-full bg-surface-200 dark:bg-surface-800 rounded-full h-2">
-                  <div className="bg-accent-500 h-2 rounded-full" style={{ width: `${Math.min((cat.count / data.totalEvents) * 100, 100)}%` }}></div>
+                  <div className="bg-accent-500 h-2 rounded-full" style={{ width: `${Math.min((cat.count / (totalEvents || 1)) * 100, 100)}%` }}></div>
                 </div>
               </div>
             ))}

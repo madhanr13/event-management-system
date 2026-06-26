@@ -8,6 +8,7 @@
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const dotenv = require('dotenv');
 const path = require('path');
 
@@ -21,6 +22,7 @@ const Registration = require('../models/Registration');
 const Attendance = require('../models/Attendance');
 const Feedback = require('../models/Feedback');
 const Certificate = require('../models/Certificate');
+const generateQRCode = require('./qrCode');
 
 /**
  * Generates a future date offset by the specified number of days from today.
@@ -189,39 +191,33 @@ const seedDatabase = async () => {
     // ─── Create Sample Registrations ────────────────────────────
     console.log('📝 Creating sample registrations...');
 
-    const registrations = await Registration.create([
-      {
-        event: events[0]._id,
-        user: student1._id,
-        qrToken: 'seed-token-001',
-        status: 'registered',
-      },
-      {
-        event: events[0]._id,
-        user: student2._id,
-        qrToken: 'seed-token-002',
-        status: 'registered',
-      },
-      {
-        event: events[1]._id,
-        user: student1._id,
-        qrToken: 'seed-token-003',
-        status: 'registered',
-      },
-      {
-        event: events[2]._id,
-        user: student3._id,
-        qrToken: 'seed-token-004',
-        status: 'registered',
-      },
+    // Helper to create a registration with a proper QR code
+    const createRegistration = async (eventId, userId) => {
+      const qrToken = crypto.randomBytes(32).toString('hex');
+      const qrData = JSON.stringify({
+        token: qrToken,
+        eventId: eventId.toString(),
+        userId: userId.toString(),
+      });
+      const qrCode = await generateQRCode(qrData);
+      return { event: eventId, user: userId, qrToken, qrCode, status: 'registered' };
+    };
+
+    const regData = await Promise.all([
+      createRegistration(events[0]._id, student1._id),
+      createRegistration(events[0]._id, student2._id),
+      createRegistration(events[1]._id, student1._id),
+      createRegistration(events[2]._id, student3._id),
     ]);
+
+    const registrations = await Registration.create(regData);
 
     // Update currentParticipants counts
     await Event.findByIdAndUpdate(events[0]._id, { currentParticipants: 2 });
     await Event.findByIdAndUpdate(events[1]._id, { currentParticipants: 1 });
     await Event.findByIdAndUpdate(events[2]._id, { currentParticipants: 1 });
 
-    console.log(`   Created ${registrations.length} registrations.`);
+    console.log(`   Created ${registrations.length} registrations (with QR codes).`);
 
     // ─── Done ───────────────────────────────────────────────────
     console.log('\n🎉 Database seeded successfully!');

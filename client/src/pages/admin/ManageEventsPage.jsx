@@ -22,11 +22,13 @@ export default function ManageEventsPage() {
       let query = {};
       if (filters.search) query.search = filters.search;
       
+      // eventService returns raw Axios response — unwrap .data
       const res = await eventService.getEvents(query);
-      if (res.success) {
-        setEvents(res.data.events || res.data);
+      const apiData = res.data; // Axios response → API body
+      if (apiData.success) {
+        setEvents(Array.isArray(apiData.data) ? apiData.data : []);
       } else {
-        showToast(res.message, 'error');
+        showToast(apiData.message || 'Failed to load events', 'error');
       }
     } catch (err) {
       showToast('Failed to load events', 'error');
@@ -41,12 +43,13 @@ export default function ManageEventsPage() {
 
   const handleDeleteEvent = async () => {
     try {
+      // adminService is already unwrapped
       const res = await adminService.deleteEvent(deleteDialog.eventId);
       if (res.success) {
         showToast('Event deleted successfully', 'success');
         setEvents(events.filter(e => e._id !== deleteDialog.eventId));
       } else {
-        showToast(res.message, 'error');
+        showToast(res.message || 'Failed to delete event', 'error');
       }
     } catch (err) {
       showToast('Failed to delete event', 'error');
@@ -112,11 +115,11 @@ export default function ManageEventsPage() {
                         ${event.status === 'completed' ? 'bg-surface-100 text-surface-700 border-surface-200 dark:bg-surface-800 dark:text-surface-400 dark:border-surface-700' : ''}
                         ${event.status === 'cancelled' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800' : ''}
                       `}>
-                        {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                        {event.status ? event.status.charAt(0).toUpperCase() + event.status.slice(1) : 'Unknown'}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-surface-700 dark:text-surface-300">
-                      {event.currentParticipants} / {event.maxParticipants}
+                      {event.currentParticipants || 0} / {event.maxParticipants || '∞'}
                     </td>
                     <td className="py-3 px-4 text-right space-x-2">
                       <Link

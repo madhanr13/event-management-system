@@ -4,8 +4,7 @@ import * as adminService from '../../services/adminService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/common/EmptyState';
-import SearchBar from '../../components/common/SearchBar';
-import { HiUsers, HiTrash, HiPencilSquare } from 'react-icons/hi2';
+import { HiUsers, HiTrash } from 'react-icons/hi2';
 
 export default function ManageUsersPage() {
   const { showToast } = useToast();
@@ -19,16 +18,16 @@ export default function ManageUsersPage() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // Building query string
-      let query = '?';
-      if (filters.search) query += `search=${filters.search}&`;
-      if (filters.role) query += `role=${filters.role}&`;
+      // Build params object (not a query string)
+      const params = {};
+      if (filters.search) params.search = filters.search;
+      if (filters.role) params.role = filters.role;
 
-      const res = await adminService.getUsers(query);
+      const res = await adminService.getUsers(params);
       if (res.success) {
-        setUsers(res.data.users || res.data); // Adjust depending on pagination
+        setUsers(Array.isArray(res.data) ? res.data : []);
       } else {
-        showToast(res.message, 'error');
+        showToast(res.message || 'Failed to load users', 'error');
       }
     } catch (err) {
       showToast('Failed to load users', 'error');
@@ -48,7 +47,7 @@ export default function ManageUsersPage() {
         showToast('Role updated successfully', 'success');
         setUsers(users.map(u => u._id === userId ? { ...u, role: newRole } : u));
       } else {
-        showToast(res.message, 'error');
+        showToast(res.message || 'Failed to update role', 'error');
       }
     } catch (err) {
       showToast('Failed to update role', 'error');
@@ -62,7 +61,7 @@ export default function ManageUsersPage() {
         showToast('User deleted successfully', 'success');
         setUsers(users.filter(u => u._id !== deleteDialog.userId));
       } else {
-        showToast(res.message, 'error');
+        showToast(res.message || 'Failed to delete user', 'error');
       }
     } catch (err) {
       showToast('Failed to delete user', 'error');

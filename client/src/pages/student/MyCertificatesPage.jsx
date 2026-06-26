@@ -35,12 +35,24 @@ export default function MyCertificatesPage() {
     setDownloading(eventId);
     try {
       const res = await certificateService.generateCertificate(eventId);
-      // If the response is a URL, open in new tab
-      const url = res.data?.data?.url || res.data?.data;
-      if (typeof url === 'string' && url.startsWith('http')) {
-        window.open(url, '_blank');
+      const certData = res.data?.data;
+      
+      // Get the certificateUrl from the response
+      const certUrl = certData?.certificateUrl;
+      
+      if (certUrl) {
+        // Create a link element and trigger download
+        const link = document.createElement('a');
+        link.href = certUrl;
+        link.download = `certificate_${eventId}.pdf`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Certificate downloaded!', 'success');
       } else {
-        showToast('Certificate generated!', 'success');
+        showToast('Certificate generated! Refresh to see it.', 'success');
+        fetchCertificates();
       }
     } catch (err) {
       showToast(err?.response?.data?.message || 'Download failed', 'error');
@@ -77,7 +89,7 @@ export default function MyCertificatesPage() {
             {certificates.map((cert, i) => {
               const event = cert.event || {};
               const eventId = event._id || cert.event;
-              const eventDate = event.date ? new Date(event.date) : cert.issuedDate ? new Date(cert.issuedDate) : null;
+              const eventDate = event.date ? new Date(event.date) : cert.generatedAt ? new Date(cert.generatedAt) : null;
 
               return (
                 <div
@@ -107,6 +119,8 @@ export default function MyCertificatesPage() {
                         {eventDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                       </div>
                     )}
+
+                    {/* Download button — always show for existing certificates */}
                     <button
                       onClick={() => handleDownload(cert)}
                       disabled={downloading === eventId}

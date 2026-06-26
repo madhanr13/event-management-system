@@ -9,8 +9,11 @@ import {
   HiCheckBadge,
   HiClock,
   HiExclamationTriangle,
+  HiAcademicCap,
+  HiArrowDownTray,
 } from 'react-icons/hi2';
 import * as registrationService from '../../services/registrationService';
+import * as certificateService from '../../services/certificateService';
 import { useToast } from '../../context/ToastContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
@@ -33,6 +36,7 @@ export default function MyRegistrationsPage() {
   const [selectedQR, setSelectedQR] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+  const [downloadingCert, setDownloadingCert] = useState(null);
 
   useEffect(() => { fetchRegistrations(); }, []);
 
@@ -69,6 +73,32 @@ export default function MyRegistrationsPage() {
       showToast(err?.response?.data?.message || 'Cancel failed', 'error');
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleDownloadCertificate = async (eventId) => {
+    setDownloadingCert(eventId);
+    try {
+      const res = await certificateService.generateCertificate(eventId);
+      const certData = res.data?.data;
+      const certUrl = certData?.certificateUrl;
+
+      if (certUrl) {
+        const link = document.createElement('a');
+        link.href = certUrl;
+        link.download = `certificate_${eventId}.pdf`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Certificate downloaded!', 'success');
+      } else {
+        showToast('Certificate generated!', 'success');
+      }
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Certificate download failed', 'error');
+    } finally {
+      setDownloadingCert(null);
     }
   };
 
@@ -111,6 +141,8 @@ export default function MyRegistrationsPage() {
               const event = reg.event || {};
               const status = statusConfig[reg.status] || statusConfig.registered;
               const eventDate = event.date ? new Date(event.date) : null;
+              const isCompleted = event.status === 'completed';
+              const isAttended = reg.status === 'attended';
 
               return (
                 <div key={reg._id} className="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 overflow-hidden hover:shadow-lg transition-all duration-200 group">
@@ -134,6 +166,11 @@ export default function MyRegistrationsPage() {
                             <status.icon className="text-xs" />
                             {status.label}
                           </span>
+                          {isCompleted && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-100 text-surface-600 dark:bg-surface-700 dark:text-surface-300">
+                              Event Completed
+                            </span>
+                          )}
                         </div>
                         <Link to={`/student/events/${event._id}`} className="text-lg font-bold text-surface-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
                           {event.title || 'Untitled Event'}
@@ -155,7 +192,7 @@ export default function MyRegistrationsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                         {reg.status === 'registered' && (
                           <>
                             <button
@@ -172,13 +209,29 @@ export default function MyRegistrationsPage() {
                             </button>
                           </>
                         )}
-                        {reg.status === 'attended' && (
-                          <Link
-                            to={`/student/feedback/${event._id}`}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-accent-700 dark:text-accent-300 bg-accent-50 dark:bg-accent-900/30 border border-accent-200 dark:border-accent-800 hover:bg-accent-100 dark:hover:bg-accent-900/50 transition-colors"
-                          >
-                            Give Feedback
-                          </Link>
+                        {isAttended && (
+                          <>
+                            <Link
+                              to={`/student/feedback/${event._id}`}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-accent-700 dark:text-accent-300 bg-accent-50 dark:bg-accent-900/30 border border-accent-200 dark:border-accent-800 hover:bg-accent-100 dark:hover:bg-accent-900/50 transition-colors"
+                            >
+                              Give Feedback
+                            </Link>
+                            {/* Certificate download button for completed events */}
+                            <button
+                              onClick={() => handleDownloadCertificate(event._id)}
+                              disabled={downloadingCert === event._id}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors disabled:opacity-60"
+                            >
+                              {downloadingCert === event._id ? (
+                                <LoadingSpinner size="sm" />
+                              ) : (
+                                <>
+                                  <HiArrowDownTray /> Certificate
+                                </>
+                              )}
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -210,18 +263,16 @@ export default function MyRegistrationsPage() {
         </Modal>
       )}
 
-      {/* Cancel Dialog */}
-      {cancelTarget && (
-        <ConfirmDialog
-          title="Cancel Registration"
-          message={`Are you sure you want to cancel your registration for "${cancelTarget.event?.title}"?`}
-          confirmText="Cancel Registration"
-          onConfirm={handleCancel}
-          onCancel={() => setCancelTarget(null)}
-          loading={cancelling}
-          variant="danger"
-        />
-      )}
+      {/* Cancel Dialog — use isOpen + onClose props matching ConfirmDialog */}
+      <ConfirmDialog
+        isOpen={!!cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={handleCancel}
+        title="Cancel Registration"
+        message={`Are you sure you want to cancel your registration for "${cancelTarget?.event?.title || 'this event'}"?`}
+        confirmText="Cancel Registration"
+        variant="danger"
+      />
     </div>
   );
 }

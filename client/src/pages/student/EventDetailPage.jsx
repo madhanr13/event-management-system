@@ -12,9 +12,12 @@ import {
   HiXMark,
   HiQrCode,
   HiCheckBadge,
+  HiAcademicCap,
+  HiArrowDownTray,
 } from 'react-icons/hi2';
 import * as eventService from '../../services/eventService';
 import * as registrationService from '../../services/registrationService';
+import * as certificateService from '../../services/certificateService';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -34,6 +37,7 @@ export default function EventDetailPage() {
   const [showQR, setShowQR] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [downloadingCert, setDownloadingCert] = useState(false);
 
   useEffect(() => {
     fetchEvent();
@@ -76,6 +80,8 @@ export default function EventDetailPage() {
   const isFull = event && event.currentParticipants >= event.maxParticipants;
   const deadlinePassed = countdown?.expired;
   const canRegister = !registration && !isFull && !deadlinePassed;
+  const isAttended = registration?.status === 'attended';
+  const isCompleted = event?.status === 'completed';
 
   const handleRegister = async () => {
     setRegistering(true);
@@ -103,6 +109,32 @@ export default function EventDetailPage() {
       showToast(err?.response?.data?.message || 'Cancel failed', 'error');
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    setDownloadingCert(true);
+    try {
+      const res = await certificateService.generateCertificate(id);
+      const certData = res.data?.data;
+      const certUrl = certData?.certificateUrl;
+
+      if (certUrl) {
+        const link = document.createElement('a');
+        link.href = certUrl;
+        link.download = `certificate_${id}.pdf`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Certificate downloaded!', 'success');
+      } else {
+        showToast('Certificate generated!', 'success');
+      }
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Certificate download failed', 'error');
+    } finally {
+      setDownloadingCert(false);
     }
   };
 
@@ -216,20 +248,47 @@ export default function EventDetailPage() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
                     <HiCheckBadge className="text-lg text-emerald-500" />
-                    <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">You are registered!</span>
+                    <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                      {isAttended ? 'Attendance Confirmed!' : 'You are registered!'}
+                    </span>
                   </div>
-                  <button
-                    onClick={() => setShowQR(true)}
-                    className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-800 hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors"
-                  >
-                    <HiQrCode className="text-lg" /> View QR Code
-                  </button>
-                  <button
-                    onClick={() => setShowCancel(true)}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    <HiXMark /> Cancel Registration
-                  </button>
+
+                  {/* QR Code — only show for registered (not attended) */}
+                  {registration.status === 'registered' && (
+                    <button
+                      onClick={() => setShowQR(true)}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-800 hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors"
+                    >
+                      <HiQrCode className="text-lg" /> View QR Code
+                    </button>
+                  )}
+
+                  {/* Certificate download — for attended events */}
+                  {isAttended && (
+                    <button
+                      onClick={handleDownloadCertificate}
+                      disabled={downloadingCert}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors disabled:opacity-60"
+                    >
+                      {downloadingCert ? (
+                        <LoadingSpinner size="sm" />
+                      ) : (
+                        <>
+                          <HiArrowDownTray className="text-lg" /> Download Certificate
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Cancel — only for registered (not attended) */}
+                  {registration.status === 'registered' && (
+                    <button
+                      onClick={() => setShowCancel(true)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                      <HiXMark /> Cancel Registration
+                    </button>
+                  )}
                 </div>
               ) : (
                 <button
@@ -254,6 +313,12 @@ export default function EventDetailPage() {
                   <HiUserGroup className="text-accent-500" />
                   <span>{event.currentParticipants || 0} participants</span>
                 </div>
+                {event.status && (
+                  <div className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
+                    <HiCheckBadge className="text-emerald-500" />
+                    <span className="capitalize">{event.status}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -279,18 +344,16 @@ export default function EventDetailPage() {
         </Modal>
       )}
 
-      {/* Cancel Confirmation */}
-      {showCancel && (
-        <ConfirmDialog
-          title="Cancel Registration"
-          message="Are you sure you want to cancel your registration? This action cannot be undone."
-          confirmText="Cancel Registration"
-          onConfirm={handleCancelRegistration}
-          onCancel={() => setShowCancel(false)}
-          loading={cancelling}
-          variant="danger"
-        />
-      )}
+      {/* Cancel Confirmation — using isOpen + onClose (not onCancel) */}
+      <ConfirmDialog
+        isOpen={showCancel}
+        onClose={() => setShowCancel(false)}
+        onConfirm={handleCancelRegistration}
+        title="Cancel Registration"
+        message="Are you sure you want to cancel your registration? This action cannot be undone."
+        confirmText="Cancel Registration"
+        variant="danger"
+      />
     </div>
   );
 }
